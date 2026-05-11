@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TechPro Ops Dashboard v3</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#1a1a18;font-size:14px}
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:210px;min-width:210px;background:#fff;border-right:0.5px solid rgba(0,0,0,.1);display:flex;flex-direction:column;overflow-y:auto}
+.sidebar-logo{padding:16px;border-bottom:0.5px solid rgba(0,0,0,.08)}
+.logo-name{font-size:14px;font-weight:600;color:#1a1a18}
+.logo-sub{font-size:10px;color:#aaa;margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+.mode-switch{margin:12px;display:flex;background:#f0ede6;border-radius:8px;padding:3px;gap:2px}
+.mode-btn{flex:1;padding:5px 4px;font-size:11px;border:none;background:transparent;border-radius:6px;cursor:pointer;color:#888;font-weight:500;transition:all .2s}
+.mode-btn.active{background:#fff;color:#1a1a18;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.nav-section{padding:10px 14px 4px;font-size:10px;font-weight:600;color:#bbb;letter-spacing:.08em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;color:#666;border-radius:7px;margin:1px 8px;font-size:13px;transition:all .15s}
+.nav-item:hover{background:#f5f5f3;color:#1a1a18}
+.nav-item.active{background:#e8f0fb;color:#185FA5;font-weight:500}
+.nav-item i{font-size:15px}
+.sidebar-footer{margin-top:auto;padding:12px 14px;border-top:0.5px solid rgba(0,0,0,.06)}
+.sidebar-footer-text{font-size:10px;color:#ccc}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:0.5px solid rgba(0,0,0,.08);position:sticky;top:0;z-index:10}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-title{font-size:15px;font-weight:600;color:#1a1a18}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500}
+.badge-internal{background:#EAF3DE;color:#3B6D11}
+.badge-client{background:#E6F1FB;color:#185FA5}
+.period-select,.btn-sm{font-size:12px;padding:5px 10px;border:0.5px solid rgba(0,0,0,.12);border-radius:6px;background:#fff;color:#1a1a18;cursor:pointer}
+.btn-sm{display:flex;align-items:center;gap:5px}
+.btn-sm:hover,.btn-sm:focus{background:#f5f5f3}
+.btn-primary{background:#185FA5;color:#fff;border-color:#185FA5}
+.btn-primary:hover{background:#0C447C}
+.refresh-info{font-size:11px;color:#aaa;display:flex;align-items:center;gap:5px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#ccc;display:inline-block;flex-shrink:0}
+.sync-ok{background:#3B6D11}
+.sync-loading{background:#854F0B;animation:pulse 1s infinite}
+.sync-error{background:#A32D2D}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.content{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+
+/* BANNER */
+.banner{border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;border:0.5px solid}
+.banner-warn{background:#FAEEDA;border-color:#FAC775}
+.banner-ok{background:#EAF3DE;border-color:#C0DD97}
+.banner-err{background:#FCEBEB;border-color:#F7C1C1}
+.banner i{font-size:18px;margin-top:1px;flex-shrink:0}
+.banner-warn i{color:#854F0B}.banner-ok i{color:#3B6D11}.banner-err i{color:#A32D2D}
+.banner-title{font-size:13px;font-weight:500;margin-bottom:3px}
+.banner-sub{font-size:12px;color:#555;line-height:1.7}
+.banner-sub code{background:rgba(0,0,0,.07);padding:1px 5px;border-radius:4px;font-size:11px;font-family:monospace}
+.banner-sub a{color:#185FA5;font-weight:500}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kpi-row-5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kpi-card{background:#fff;border:0.5px solid rgba(0,0,0,.08);border-radius:10px;padding:12px 14px}
+.kpi-label{font-size:10px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.kpi-value{font-size:20px;font-weight:600;color:#1a1a18;line-height:1.2}
+.kpi-delta{font-size:11px;margin-top:5px;display:flex;align-items:center;gap:3px}
+.delta-up{color:#3B6D11}.delta-down{color:#A32D2D}.delta-neutral{color:#888}
+.mini-chart{height:28px;margin-top:6px}
+
+/* PANELS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid-32{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+.panel{background:#fff;border:0.5px solid rgba(0,0,0,.08);border-radius:10px;padding:14px 16px}
+.panel-title{font-size:10px;font-weight:600;color:#888;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.chart-wrap{position:relative;width:100%}
+.stabs{display:flex;gap:2px;margin-bottom:12px;background:#f5f5f3;border-radius:7px;padding:3px}
+.stab{flex:1;text-align:center;padding:5px 8px;font-size:11px;font-weight:500;border:none;background:transparent;cursor:pointer;border-radius:5px;color:#888;transition:all .2s}
+.stab.on{background:#fff;color:#1a1a18;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{color:#888;font-weight:500;text-align:left;padding:5px 8px;border-bottom:0.5px solid rgba(0,0,0,.08);font-size:11px}
+.tbl td{padding:7px 8px;border-bottom:0.5px solid rgba(0,0,0,.06)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f9f9f7}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500}
+.pill-g{background:#EAF3DE;color:#3B6D11}.pill-a{background:#FAEEDA;color:#854F0B}
+.pill-r{background:#FCEBEB;color:#A32D2D}.pill-b{background:#E6F1FB;color:#185FA5}
+.donut-wrap{display:flex;align-items:center;gap:16px}
+.legend-list{display:flex;flex-direction:column;gap:7px;font-size:12px}
+.legend-item{display:flex;align-items:center;gap:7px}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.alert-list{display:flex;flex-direction:column;gap:8px}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px}
+.alert-r{background:#FCEBEB;border:0.5px solid #F7C1C1}
+.alert-a{background:#FAEEDA;border:0.5px solid #FAC775}
+.alert-g{background:#EAF3DE;border:0.5px solid #C0DD97}
+.alert-icon{font-size:16px;margin-top:1px}
+.alert-r .alert-icon{color:#A32D2D}.alert-a .alert-icon{color:#854F0B}.alert-g .alert-icon{color:#3B6D11}
+.alert-body .alert-title{font-size:12px;font-weight:500;margin-bottom:2px}
+.alert-body .alert-sub{font-size:11px;color:#888}
+.insight-list{display:flex;flex-direction:column;gap:8px}
+.insight{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#555;line-height:1.6}
+.insight i{font-size:14px;margin-top:1px;flex-shrink:0;color:#185FA5}
+.score-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.score-item{text-align:center;padding:8px;background:#f5f5f3;border-radius:7px}
+.score-item-val{font-size:16px;font-weight:600}
+.score-item-lbl{font-size:10px;color:#888;margin-top:2px}
+.view-content{display:none}
+.view-content.active{display:flex;flex-direction:column;gap:14px}
+
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{background:#fff;border-radius:12px;padding:22px;width:500px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.modal-close{cursor:pointer;color:#888;font-size:18px;line-height:1}
+.modal-desc{font-size:12px;color:#888;margin-bottom:18px;line-height:1.6}
+.step-block{display:flex;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:0.5px solid rgba(0,0,0,.07)}
+.step-block:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.step-num{width:26px;height:26px;border-radius:50%;background:#185FA5;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-title{font-size:13px;font-weight:600;margin-bottom:4px;color:#1a1a18}
+.step-desc{font-size:12px;color:#555;line-height:1.7}
+.step-desc code{background:#f0ede6;padding:1px 5px;border-radius:4px;font-size:11px;font-family:monospace}
+.step-desc a{color:#185FA5;font-weight:500}
+.input-group{margin-bottom:12px}
+.input-group label{font-size:11px;color:#888;display:block;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.input-group input{width:100%;padding:9px 11px;border:0.5px solid rgba(0,0,0,.15);border-radius:7px;background:#fff;color:#1a1a18;font-size:13px;outline:none;font-family:monospace}
+.input-group input:focus{border-color:#185FA5;box-shadow:0 0 0 2px rgba(24,95,165,.12)}
+.input-hint{font-size:11px;color:#aaa;margin-top:4px}
+.save-btn{width:100%;padding:10px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px}
+.save-btn:hover{background:#0C447C}
+.save-btn:disabled{background:#ccc;cursor:not-allowed}
+.result-box{margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;display:none;line-height:1.6}
+.result-ok{background:#EAF3DE;color:#3B6D11;border:0.5px solid #C0DD97}
+.result-fail{background:#FCEBEB;color:#A32D2D;border:0.5px solid #F7C1C1}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-name">TechPro Ops</div>
+      <div class="logo-sub">Dashboard v3</div>
+    </div>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="modeInternal" onclick="setMode('internal')">Nội bộ</button>
+      <button class="mode-btn" id="modeClient" onclick="setMode('client')">Khách hàng</button>
+    </div>
+    <div class="nav-section">Tổng quan</div>
+    <div class="nav-item active" onclick="showView('overview',this)"><i class="ti ti-layout-dashboard"></i>Overview</div>
+    <div class="nav-item" onclick="showView('tiktok',this)"><i class="ti ti-brand-tiktok"></i>TikTok Shop</div>
+    <div class="nav-item" onclick="showView('ads',this)"><i class="ti ti-chart-bar"></i>TikTok Ads</div>
+    <div class="nav-item" onclick="showView('shopee',this)"><i class="ti ti-shopping-bag"></i>Shopee</div>
+    <div class="nav-section">Phân tích</div>
+    <div class="nav-item" onclick="showView('sku',this)"><i class="ti ti-package"></i>Sản phẩm / SKU</div>
+    <div class="nav-item" onclick="showView('alert',this)"><i class="ti ti-bell"></i>Cảnh báo</div>
+    <div class="nav-section">Cài đặt</div>
+    <div class="nav-item" onclick="openSetup()"><i class="ti ti-table"></i>Kết nối Sheet</div>
+    <div class="sidebar-footer"><div class="sidebar-footer-text">TechPro Holding © 2026</div></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title" id="viewTitle">Overview — Vận hành sàn</span>
+        <span class="badge badge-internal" id="modeBadge">Nội bộ</span>
+      </div>
+      <div class="topbar-right">
+        <div class="refresh-info">
+          <span class="sync-dot" id="syncDot"></span>
+          <span id="syncLabel">Chưa kết nối</span>
+        </div>
+        <select class="period-select"><option>Tháng này</option><option>Tuần này</option><option>Quý này</option></select>
+        <button class="btn-sm" onclick="syncData()"><i class="ti ti-refresh"></i>Sync</button>
+        <button class="btn-sm btn-primary" onclick="openSetup()"><i class="ti ti-table"></i>Kết nối Sheet</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- OVERVIEW -->
+      <div class="view-content active" id="view-overview">
+
+        <div class="banner banner-warn" id="mainBanner">
+          <i class="ti ti-alert-triangle"></i>
+          <div>
+            <div class="banner-title">Chưa kết nối Google Sheets</div>
+            <div class="banner-sub">Nhấn <strong>Kết nối Sheet</strong> → làm theo 3 bước (khoảng 5 phút). Không cần API Key — chỉ cần link publish của Sheet. Dữ liệu demo đang hiển thị.</div>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label">GMV thực tế</div><div class="kpi-value" id="kpi-gmv">1.24T</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i><span id="d-gmv">+18.6%</span></div><canvas class="mini-chart" id="mc1"></canvas></div>
+          <div class="kpi-card"><div class="kpi-label">Doanh thu thuần</div><div class="kpi-value" id="kpi-dt">980M</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i><span>+14.2%</span></div><canvas class="mini-chart" id="mc2"></canvas></div>
+          <div class="kpi-card"><div class="kpi-label">Tổng đơn hàng</div><div class="kpi-value" id="kpi-orders">4,821</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i><span>+9.3%</span></div><canvas class="mini-chart" id="mc3"></canvas></div>
+          <div class="kpi-card"><div class="kpi-label">Chi phí Ads</div><div class="kpi-value" id="kpi-ads">156M</div><div class="kpi-delta delta-down"><i class="ti ti-trending-up"></i><span>+22.1%</span></div><canvas class="mini-chart" id="mc4"></canvas></div>
+          <div class="kpi-card"><div class="kpi-label">ROAS trung bình</div><div class="kpi-value" id="kpi-roas">6.3x</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i><span>+0.4x</span></div><canvas class="mini-chart" id="mc5"></canvas></div>
+          <div class="kpi-card"><div class="kpi-label">Tỷ lệ hoàn hàng</div><div class="kpi-value" id="kpi-return">2.4%</div><div class="kpi-delta delta-up"><i class="ti ti-trending-down"></i><span>-0.3pp</span></div><canvas class="mini-chart" id="mc6"></canvas></div>
+        </div>
+
+        <div class="grid-32">
+          <div class="panel">
+            <div class="panel-title">GMV theo kênh</div>
+            <div class="stabs">
+              <button class="stab on" onclick="switchLine('gmv',this)">GMV</button>
+              <button class="stab" onclick="switchLine('orders',this)">Đơn hàng</button>
+              <button class="stab" onclick="switchLine('roas',this)">ROAS</button>
+            </div>
+            <div style="display:flex;gap:12px;margin-bottom:8px;font-size:11px;color:#888" id="lineLeg">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:3px;background:#185FA5;display:inline-block;border-radius:2px"></span>TikTok</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:3px;background:#E24B4A;display:inline-block;border-radius:2px"></span>Shopee</span>
+            </div>
+            <div class="chart-wrap" style="height:180px"><canvas id="lineChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Phân bổ GMV</div>
+            <div class="donut-wrap" style="margin-top:8px">
+              <div class="chart-wrap" style="height:120px;width:120px;flex-shrink:0"><canvas id="donutChart"></canvas></div>
+              <div class="legend-list">
+                <div class="legend-item"><div class="leg-dot" style="background:#185FA5"></div><div><div style="font-weight:500;font-size:12px">TikTok Shop</div><div style="color:#888;font-size:11px" id="leg-tt">58% — 719M</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#E24B4A"></div><div><div style="font-weight:500;font-size:12px">Shopee</div><div style="color:#888;font-size:11px" id="leg-sp">42% — 521M</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="panel">
+            <div class="panel-title">Cảnh báo vận hành</div>
+            <div class="alert-list">
+              <div class="alert-item alert-r"><i class="ti ti-alert-circle alert-icon"></i><div class="alert-body"><div class="alert-title">ROAS tệp lạnh &lt; 5x</div><div class="alert-sub">Đang 4.1x — cần tối ưu ngay</div></div></div>
+              <div class="alert-item alert-a"><i class="ti ti-alert-triangle alert-icon"></i><div class="alert-body"><div class="alert-title">Tồn kho SKU013 sắp hết</div><div class="alert-sub">48 units — còn ~6 ngày</div></div></div>
+              <div class="alert-item alert-g"><i class="ti ti-circle-check alert-icon"></i><div class="alert-body"><div class="alert-title">Shopee vượt target</div><div class="alert-sub">521M / 500M = 104.2%</div></div></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Hành động đề xuất</div>
+            <div class="insight-list">
+              <div class="insight"><i class="ti ti-arrow-right"></i>Scale ngân sách tệp ấm — ROAS 8.2x</div>
+              <div class="insight"><i class="ti ti-arrow-right"></i>Bổ sung kho SKU013 trong 3 ngày</div>
+              <div class="insight"><i class="ti ti-arrow-right"></i>Bundle combo tăng AOV Shopee</div>
+              <div class="insight"><i class="ti ti-arrow-right"></i>Thay creative tệp lạnh — CTR 1.12%</div>
+              <div class="insight"><i class="ti ti-arrow-right"></i>Flash Sale Shopee tuần 3</div>
+            </div>
+          </div>
+          <div class="panel" style="display:flex;flex-direction:column;align-items:center;gap:10px">
+            <div class="panel-title" style="align-self:flex-start">Điểm vận hành</div>
+            <div style="position:relative;display:inline-flex;align-items:center;justify-content:center">
+              <canvas id="scoreChart" width="120" height="120"></canvas>
+              <div style="position:absolute;text-align:center"><div style="font-size:24px;font-weight:600" id="scoreNum">82</div><div style="font-size:10px;color:#888">/100</div></div>
+            </div>
+            <div style="font-size:12px;color:#3B6D11;font-weight:500">Tốt</div>
+            <div class="score-grid">
+              <div class="score-item"><div class="score-item-val" style="color:#185FA5">85</div><div class="score-item-lbl">Tăng trưởng</div></div>
+              <div class="score-item"><div class="score-item-val" style="color:#3B6D11">79</div><div class="score-item-lbl">Hiệu quả Ads</div></div>
+              <div class="score-item"><div class="score-item-val" style="color:#854F0B">81</div><div class="score-item-lbl">Vận hành</div></div>
+              <div class="score-item"><div class="score-item-val" style="color:#185FA5">83</div><div class="score-item-lbl">Kiểm soát</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIKTOK SHOP -->
+      <div class="view-content" id="view-tiktok">
+        <div class="kpi-row-5">
+          <div class="kpi-card"><div class="kpi-label">GMV TikTok Shop</div><div class="kpi-value" id="tt-gmv">719M</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+21.4%</div></div>
+          <div class="kpi-card"><div class="kpi-label">Đơn thành công</div><div class="kpi-value" id="tt-orders">2,847</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+15.2%</div></div>
+          <div class="kpi-card"><div class="kpi-label">AOV</div><div class="kpi-value" id="tt-aov">252k</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+5.4k</div></div>
+          <div class="kpi-card"><div class="kpi-label">Tỷ lệ hoàn hàng</div><div class="kpi-value" id="tt-return">1.8%</div><div class="kpi-delta delta-up"><i class="ti ti-trending-down"></i>-0.4pp</div></div>
+          <div class="kpi-card"><div class="kpi-label">% GMV Flash Sale</div><div class="kpi-value">38%</div><div class="kpi-delta delta-neutral">của tổng GMV</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Top sản phẩm TikTok Shop</div>
+            <table class="tbl"><thead><tr><th>Sản phẩm</th><th>Đơn</th><th>GMV</th><th>Trạng thái</th></tr></thead>
+            <tbody>
+              <tr><td>Kem dưỡng AHA 50ml</td><td>842</td><td>168M</td><td><span class="pill pill-g">Scale</span></td></tr>
+              <tr><td>Serum B5 phục hồi 30ml</td><td>614</td><td>123M</td><td><span class="pill pill-g">Scale</span></td></tr>
+              <tr><td>Tẩy trang Oil Control 200ml</td><td>512</td><td>77M</td><td><span class="pill pill-b">Theo dõi</span></td></tr>
+              <tr><td>Mặt nạ đất sét 100ml</td><td>389</td><td>58M</td><td><span class="pill pill-a">Tối ưu</span></td></tr>
+              <tr><td>Xịt khoáng phục hồi 150ml</td><td>298</td><td>45M</td><td><span class="pill pill-r">Slow</span></td></tr>
+            </tbody></table>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Trạng thái đơn hàng</div>
+            <div class="donut-wrap" style="margin-top:12px">
+              <div class="chart-wrap" style="height:130px;width:130px;flex-shrink:0"><canvas id="ttOrderChart"></canvas></div>
+              <div class="legend-list">
+                <div class="legend-item"><div class="leg-dot" style="background:#3B6D11"></div><div><div style="font-weight:500;font-size:12px">Hoàn thành</div><div style="color:#888;font-size:11px">78% — 2,220 đơn</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#185FA5"></div><div><div style="font-weight:500;font-size:12px">Đang giao</div><div style="color:#888;font-size:11px">12% — 342 đơn</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#854F0B"></div><div><div style="font-weight:500;font-size:12px">Đã hủy</div><div style="color:#888;font-size:11px">8.2% — 234 đơn</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#E24B4A"></div><div><div style="font-weight:500;font-size:12px">Hoàn hàng</div><div style="color:#888;font-size:11px">1.8% — 51 đơn</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIKTOK ADS -->
+      <div class="view-content" id="view-ads">
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label">Tổng chi phí Ads</div><div class="kpi-value" id="ads-spend">156M</div><div class="kpi-delta delta-down"><i class="ti ti-trending-up"></i>+22.1%</div></div>
+          <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value" id="ads-roas">6.3x</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+0.4x</div></div>
+          <div class="kpi-card"><div class="kpi-label">Đơn từ Ads</div><div class="kpi-value" id="ads-orders">1,842</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+18.3%</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPO</div><div class="kpi-value" id="ads-cpo">84.7k</div><div class="kpi-delta delta-up"><i class="ti ti-trending-down"></i>-6.2k</div></div>
+          <div class="kpi-card"><div class="kpi-label">CTR trung bình</div><div class="kpi-value" id="ads-ctr">1.84%</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+0.2pp</div></div>
+          <div class="kpi-card"><div class="kpi-label">CPC</div><div class="kpi-value" id="ads-cpc">1,240đ</div><div class="kpi-delta delta-up"><i class="ti ti-trending-down"></i>-180đ</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Hiệu quả theo nhóm chiến dịch</div>
+          <table class="tbl"><thead><tr><th>Nhóm chiến dịch</th><th>Chi phí</th><th>GMV</th><th>ROAS</th><th>Đơn</th><th>CPO</th><th>CTR</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td>Video tệp ấm</td><td>45M</td><td>369M</td><td style="color:#3B6D11;font-weight:600">8.2x</td><td>632</td><td>71.2k</td><td>2.41%</td><td><span class="pill pill-g">Scale</span></td></tr>
+            <tr><td>LIVE Retarget</td><td>38M</td><td>266M</td><td style="color:#3B6D11;font-weight:600">7.0x</td><td>418</td><td>90.9k</td><td>1.92%</td><td><span class="pill pill-g">Tốt</span></td></tr>
+            <tr><td>GMV Max Auto</td><td>42M</td><td>252M</td><td style="color:#185FA5;font-weight:600">6.0x</td><td>420</td><td>100k</td><td>1.75%</td><td><span class="pill pill-b">Theo dõi</span></td></tr>
+            <tr><td>Video tệp lạnh</td><td>31M</td><td>127M</td><td style="color:#A32D2D;font-weight:600">4.1x</td><td>372</td><td>83.3k</td><td>1.12%</td><td><span class="pill pill-r">Tối ưu gấp</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Chi phí vs GMV từ Ads</div>
+          <div style="display:flex;gap:12px;margin-bottom:8px;font-size:11px;color:#888">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#B5D4F4;display:inline-block;border-radius:2px"></span>Chi phí</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#185FA5;display:inline-block;border-radius:2px"></span>GMV từ Ads</span>
+          </div>
+          <div class="chart-wrap" style="height:160px"><canvas id="adsBarChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- SHOPEE -->
+      <div class="view-content" id="view-shopee">
+        <div class="kpi-row-5">
+          <div class="kpi-card"><div class="kpi-label">GMV Shopee</div><div class="kpi-value" id="sp-gmv">521M</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+12.8%</div></div>
+          <div class="kpi-card"><div class="kpi-label">Đơn thành công</div><div class="kpi-value" id="sp-orders">1,974</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+8.4%</div></div>
+          <div class="kpi-card"><div class="kpi-label">AOV</div><div class="kpi-value" id="sp-aov">264k</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+9.1k</div></div>
+          <div class="kpi-card"><div class="kpi-label">Phí sàn / GMV</div><div class="kpi-value">17.7%</div><div class="kpi-delta delta-neutral">Shopee trợ giá 0đ</div></div>
+          <div class="kpi-card"><div class="kpi-label">Rating shop</div><div class="kpi-value" id="sp-rating">4.9★</div><div class="kpi-delta delta-up"><i class="ti ti-trending-up"></i>+0.1</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Top sản phẩm Shopee</div>
+            <table class="tbl"><thead><tr><th>Sản phẩm</th><th>Bán được</th><th>Doanh thu</th><th>Phí sàn</th></tr></thead>
+            <tbody>
+              <tr><td>Kem dưỡng AHA 50ml</td><td>612</td><td>122M</td><td>21.6M</td></tr>
+              <tr><td>Serum B5 phục hồi 30ml</td><td>448</td><td>89.6M</td><td>15.9M</td></tr>
+              <tr><td>Tẩy trang Oil Control 200ml</td><td>321</td><td>48.2M</td><td>8.5M</td></tr>
+              <tr><td>Mặt nạ đất sét 100ml</td><td>289</td><td>43.4M</td><td>7.7M</td></tr>
+              <tr><td>Xịt khoáng phục hồi 150ml</td><td>214</td><td>32.1M</td><td>5.7M</td></tr>
+            </tbody></table>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Phương thức thanh toán</div>
+            <div class="donut-wrap" style="margin-top:12px">
+              <div class="chart-wrap" style="height:130px;width:130px;flex-shrink:0"><canvas id="shopeePayChart"></canvas></div>
+              <div class="legend-list">
+                <div class="legend-item"><div class="leg-dot" style="background:#185FA5"></div><div><div style="font-weight:500;font-size:12px">COD</div><div style="color:#888;font-size:11px">51%</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#3B6D11"></div><div><div style="font-weight:500;font-size:12px">Ngân hàng</div><div style="color:#888;font-size:11px">20%</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#854F0B"></div><div><div style="font-weight:500;font-size:12px">Thẻ TD/GN</div><div style="color:#888;font-size:11px">15%</div></div></div>
+                <div class="legend-item"><div class="leg-dot" style="background:#888"></div><div><div style="font-weight:500;font-size:12px">Khác</div><div style="color:#888;font-size:11px">14%</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SKU -->
+      <div class="view-content" id="view-sku">
+        <div class="panel">
+          <div class="panel-title">Danh sách SKU — Tổng hợp tất cả kênh</div>
+          <table class="tbl"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>TikTok đơn</th><th>Shopee đơn</th><th>Tổng GMV</th><th>Tồn kho</th><th>Turnover</th><th>Phân loại</th></tr></thead>
+          <tbody>
+            <tr><td>SKU001</td><td>Kem dưỡng AHA 50ml</td><td>842</td><td>612</td><td>290M</td><td>320</td><td>8.2x</td><td><span class="pill pill-g">Core</span></td></tr>
+            <tr><td>SKU002</td><td>Serum B5 phục hồi 30ml</td><td>614</td><td>448</td><td>212M</td><td>280</td><td>6.5x</td><td><span class="pill pill-g">Core</span></td></tr>
+            <tr><td>SKU003</td><td>Tẩy trang Oil Control 200ml</td><td>512</td><td>321</td><td>125M</td><td>245</td><td>5.1x</td><td><span class="pill pill-b">Strategic</span></td></tr>
+            <tr><td>SKU004</td><td>Mặt nạ đất sét 100ml</td><td>389</td><td>289</td><td>101M</td><td>210</td><td>4.8x</td><td><span class="pill pill-b">Strategic</span></td></tr>
+            <tr><td>SKU013</td><td>Xịt khoáng phục hồi 150ml</td><td>298</td><td>214</td><td>77M</td><td style="color:#A32D2D;font-weight:500">48</td><td>2.1x</td><td><span class="pill pill-r">At Risk</span></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- ALERT -->
+      <div class="view-content" id="view-alert">
+        <div class="panel">
+          <div class="panel-title">Cảnh báo hệ thống</div>
+          <div class="alert-list">
+            <div class="alert-item alert-r"><i class="ti ti-alert-circle alert-icon"></i><div class="alert-body"><div class="alert-title">ROAS tệp lạnh dưới ngưỡng tối thiểu</div><div class="alert-sub">Đang 4.1x — ngưỡng 5.0x. Tối ưu creative hoặc cắt ngân sách.</div></div></div>
+            <div class="alert-item alert-r"><i class="ti ti-alert-circle alert-icon"></i><div class="alert-body"><div class="alert-title">Tồn kho SKU013 dưới mức an toàn</div><div class="alert-sub">48 units — hết trong ~6 ngày. Đặt hàng ngay.</div></div></div>
+            <div class="alert-item alert-a"><i class="ti ti-alert-triangle alert-icon"></i><div class="alert-body"><div class="alert-title">Tỷ lệ hủy đơn TikTok tăng</div><div class="alert-sub">8.2% (+1.4pp). Kiểm tra quy trình xác nhận đơn.</div></div></div>
+            <div class="alert-item alert-a"><i class="ti ti-alert-triangle alert-icon"></i><div class="alert-body"><div class="alert-title">CTR tệp lạnh thấp — 1.12%</div><div class="alert-sub">Ngưỡng 1.5%. Thay creative trong 3–5 ngày.</div></div></div>
+            <div class="alert-item alert-g"><i class="ti ti-circle-check alert-icon"></i><div class="alert-body"><div class="alert-title">Shopee vượt target tháng</div><div class="alert-sub">521M / 500M = 104.2%. Rating 4.9★.</div></div></div>
+            <div class="alert-item alert-g"><i class="ti ti-circle-check alert-icon"></i><div class="alert-body"><div class="alert-title">ROAS tệp ấm & Retarget ổn định</div><div class="alert-sub">Tệp ấm 8.2x | Retarget 7.0x — vùng scale an toàn.</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-backdrop" id="setupModal" style="display:none" onclick="if(event.target===this)closeSetup()">
+  <div class="modal">
+    <div class="modal-title">
+      Kết nối Google Sheets
+      <span class="modal-close" onclick="closeSetup()"><i class="ti ti-x"></i></span>
+    </div>
+    <div class="modal-desc">Không cần API Key. Chỉ cần <strong>publish Sheet</strong> dạng CSV rồi dán link vào đây — xong trong 3 bước.</div>
+
+    <div class="step-block">
+      <div class="step-num">1</div>
+      <div>
+        <div class="step-title">Mở Google Sheet của bạn</div>
+        <div class="step-desc">
+          Vào Google Sheet đang dùng (hoặc tải file template Excel về → upload lên Google Drive → mở bằng Google Sheets).<br>
+          Đảm bảo tab đầu tiên có tên <code>KPI_Tháng</code> và cột A = tên chỉ số, cột B = giá trị hiện tại.
+        </div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">2</div>
+      <div>
+        <div class="step-title">Publish Sheet dạng CSV (miễn phí, 1 click)</div>
+        <div class="step-desc">
+          Trong Google Sheet (phiên bản tiếng Việt): <strong>File → Chia sẻ → Xuất bản lên web</strong><br>
+          → Dropdown trái: chọn tab <code>KPI_Tháng</code><br>
+          → Dropdown phải: chọn <strong>"Giá trị được phân cách bằng dấu phẩy (.csv)"</strong><br>
+          → Nhấn <strong>Xuất bản</strong> → Copy link.<br><br>
+          ✓ Link đúng sẽ có dạng:<br>
+          <code>.../pub?gid=1690629984&single=true&output=csv</code><br><br>
+          ✗ Nếu link chứa <code>/edit</code> hoặc <code>/view</code> là sai — phải lấy từ Xuất bản lên web.
+        </div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">3</div>
+      <div>
+        <div class="step-title">Dán link vào đây</div>
+        <div class="step-desc" style="margin-bottom:12px">Dán đúng link CSV publish từ bước 2. Dashboard sẽ tự đọc data mỗi lần nhấn Sync — không cần làm lại.</div>
+        <div class="input-group">
+          <label>Link CSV publish (tab KPI_Tháng)</label>
+          <input type="text" id="inp-csv-url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv">
+          <div class="input-hint">Lấy từ File → Chia sẻ → Xuất bản lên web → chọn tab → chọn CSV → copy link<br>Link đúng sẽ chứa <code>/pub?gid=</code> và <code>output=csv</code></div>
+        </div>
+        <div id="setupResult" class="result-box"></div>
+      </div>
+    </div>
+
+    <button class="save-btn" id="connectBtn" onclick="saveAndConnect()">
+      <i class="ti ti-plug"></i> Kết nối & đồng bộ ngay
+    </button>
+  </div>
+</div>
+
+<script>
+let cfg = {csvUrl:''};
+let charts = {};
+let lineTab = 'gmv';
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  try { const s = localStorage.getItem('tp_cfg_v3'); if(s) cfg = JSON.parse(s); } catch(e){}
+  setTimeout(() => {
+    initChartsForView('overview');
+    if(cfg.csvUrl) syncData();
+  }, 150);
+});
+
+// ── NAV ────────────────────────────────────────────────────────────────────────
+function showView(v, el){
+  document.querySelectorAll('.view-content').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  el.classList.add('active');
+  const T = {overview:'Overview — Vận hành sàn',tiktok:'TikTok Shop',ads:'TikTok Ads',shopee:'Shopee',sku:'Sản phẩm / SKU',alert:'Cảnh báo'};
+  document.getElementById('viewTitle').textContent = T[v]||v;
+  setTimeout(()=>initChartsForView(v), 80);
+}
+
+function setMode(m){
+  document.getElementById('modeInternal').classList.toggle('active', m==='internal');
+  document.getElementById('modeClient').classList.toggle('active', m==='client');
+  document.getElementById('modeBadge').textContent = m==='internal'?'Nội bộ':'Khách hàng';
+  document.getElementById('modeBadge').className = 'badge '+(m==='internal'?'badge-internal':'badge-client');
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openSetup(){
+  document.getElementById('inp-csv-url').value = cfg.csvUrl||'';
+  document.getElementById('setupResult').style.display='none';
+  document.getElementById('setupModal').style.display='flex';
+}
+function closeSetup(){ document.getElementById('setupModal').style.display='none'; }
+
+async function saveAndConnect(){
+  const url = document.getElementById('inp-csv-url').value.trim();
+  if(!url){ showResult(false,'Vui lòng dán link CSV publish vào ô trên.'); return; }
+  if(!url.includes('docs.google.com')){ showResult(false,'Link không đúng định dạng. Phải là link từ Google Sheets → Publish to web.'); return; }
+  if(!url.includes('/pub?') && !url.includes('gviz/tq') && !url.includes('output=csv')){
+    showResult(false,'Link chưa đúng. Cần link dạng: .../pub?gid=...&output=csv — lấy từ File → Xuất bản lên web → chọn CSV');
+    return;
+  }
+
+  const btn = document.getElementById('connectBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Đang kiểm tra...';
+
+  try {
+    // Build proper CSV export URL
+    const csvUrl = buildCsvUrl(url, 'KPI_Tháng');
+    const res = await fetch(csvUrl);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    if(!text || text.trim().length < 5) throw new Error('Sheet trống hoặc chưa publish đúng tab');
+
+    cfg.csvUrl = url;
+    localStorage.setItem('tp_cfg_v3', JSON.stringify(cfg));
+    showResult(true, '✓ Kết nối thành công! Đang tải dữ liệu...');
+    setTimeout(()=>{ closeSetup(); syncData(); }, 1000);
+  } catch(err){
+    let msg = err.message||'Không kết nối được.';
+    if(msg.includes('Failed to fetch') || msg.includes('NetworkError')){
+      msg = 'Không tải được — dashboard đang chạy từ GitHub (đúng rồi). Kiểm tra: (1) Link có chứa /pub?gid= và output=csv không? (2) Sheet đã Xuất bản chưa? (3) Thử copy lại link mới từ File → Xuất bản lên web.';
+    }
+    if(msg.includes('404')){
+      msg = 'Lỗi 404 — Sheet chưa được publish đúng cách. Vào File → Chia sẻ → Xuất bản lên web → chọn đúng tab → chọn CSV → Xuất bản → copy link mới.';
+    }
+    showResult(false, msg);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-plug"></i> Kết nối & đồng bộ ngay';
+}
+
+function showResult(ok, msg){
+  const el = document.getElementById('setupResult');
+  el.className = 'result-box '+(ok?'result-ok':'result-fail');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── BUILD CSV URL ─────────────────────────────────────────────────────────────
+// Accepts multiple formats: gviz URL, edit URL, or published URL
+function buildCsvUrl(input, sheetName){
+  // If it's already a gviz/csv URL, use as-is but ensure correct sheet param
+  if(input.includes('gviz/tq') || input.includes('tqx=out:csv')){
+    const u = new URL(input);
+    u.searchParams.set('tqx','out:csv');
+    u.searchParams.set('sheet', sheetName);
+    return u.toString();
+  }
+  // Extract sheet ID from any google sheets URL
+  const m = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if(!m) throw new Error('Không tìm được Sheet ID trong link');
+  const id = m[1];
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
+
+// ── SYNC ──────────────────────────────────────────────────────────────────────
+async function syncData(){
+  if(!cfg.csvUrl){ setSyncStatus('','Chưa kết nối'); return; }
+  setSyncStatus('sync-loading','Đang đồng bộ...');
+  try {
+    await fetchAndApplyKPI();
+    const now = new Date();
+    const ts = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+    setSyncStatus('sync-ok', `Đồng bộ ${ts}`);
+    updateBanner(true);
+  } catch(err){
+    setSyncStatus('sync-error','Lỗi đồng bộ');
+    console.error('Sync error:', err);
+  }
+}
+
+function setSyncStatus(cls, label){
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot ' + cls;
+  document.getElementById('syncLabel').textContent = label;
+}
+
+function updateBanner(ok){
+  const b = document.getElementById('mainBanner');
+  if(!b) return;
+  b.className = 'banner banner-ok';
+  b.innerHTML = `<i class="ti ti-circle-check"></i><div><div class="banner-title">Đã kết nối Google Sheets</div><div class="banner-sub">Nhấn <strong>Sync</strong> để cập nhật dữ liệu mới nhất từ Sheet.</div></div>`;
+}
+
+// ── PARSE & APPLY ─────────────────────────────────────────────────────────────
+async function fetchAndApplyKPI(){
+  const csvUrl = buildCsvUrl(cfg.csvUrl, 'KPI_Tháng');
+  const res = await fetch(csvUrl);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const text = await res.text();
+  const kpi = parseCSV(text);  // {metric_key: current_value}
+
+  // Map sheet keys → DOM element IDs
+  const map = {
+    'GMV_thuc_te':       'kpi-gmv',
+    'Doanh_thu_thuan':   'kpi-dt',
+    'Tong_don_hang':     'kpi-orders',
+    'Chi_phi_Ads':       'kpi-ads',
+    'ROAS':              'kpi-roas',
+    'Ty_le_hoan_hang':   'kpi-return',
+    'TT_GMV':            'tt-gmv',
+    'TT_Don_thanh_cong': 'tt-orders',
+    'TT_AOV':            'tt-aov',
+    'TT_Hoan_hang':      'tt-return',
+    'SP_GMV':            'sp-gmv',
+    'SP_Don_thanh_cong': 'sp-orders',
+    'SP_AOV':            'sp-aov',
+    'SP_Rating':         'sp-rating',
+    'Ads_ROAS':          'ads-roas',
+    'Ads_Don_tu_Ads':    'ads-orders',
+    'Ads_CPO':           'ads-cpo',
+    'Ads_CTR':           'ads-ctr',
+    'Ads_CPC':           'ads-cpc',
+  };
+
+  Object.entries(map).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if(el && kpi[key] !== undefined && kpi[key] !== '') {
+      el.textContent = formatVal(kpi[key], key);
+    }
+  });
+
+  // Update donut chart legend
+  const ttg = parseFloat((kpi['TT_GMV']||'').replace(/[^0-9.]/g,''))||0;
+  const spg = parseFloat((kpi['SP_GMV']||'').replace(/[^0-9.]/g,''))||0;
+  if(ttg || spg){
+    const total = ttg + spg;
+    const ttPct = total>0 ? Math.round(ttg/total*100) : 58;
+    const spPct = 100 - ttPct;
+    const legTT = document.getElementById('leg-tt');
+    const legSP = document.getElementById('leg-sp');
+    if(legTT) legTT.textContent = `${ttPct}% — ${fmtMoney(ttg)}`;
+    if(legSP) legSP.textContent = `${spPct}% — ${fmtMoney(spg)}`;
+    // Rebuild donut
+    if(charts['donutChart']){
+      charts['donutChart'].data.datasets[0].data = [ttPct, spPct];
+      charts['donutChart'].update();
+    }
+  }
+}
+
+function parseCSV(text){
+  // Returns {col_A_value: col_B_value} map
+  const result = {};
+  const lines = text.split('\n').filter(l=>l.trim());
+  lines.forEach(line => {
+    // Handle quoted CSV values
+    const cols = line.match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+    const key = (cols[0]||'').replace(/^"|"$/g,'').trim();
+    const val = (cols[1]||'').replace(/^"|"$/g,'').trim();
+    if(key) result[key] = val;
+  });
+  return result;
+}
+
+function formatVal(v, key){
+  const n = parseFloat(String(v).replace(/[^0-9.]/g,''));
+  if(isNaN(n)) return v;
+  // ROAS keys
+  if(key.includes('ROAS') || key === 'ROAS') return n.toFixed(1)+'x';
+  // Percentage keys
+  if(key.includes('pct') || key.includes('Hoan_hang') || key.includes('CTR') || key.includes('Ty_le')) return n.toFixed(1)+'%';
+  // Rating
+  if(key.includes('Rating')) return n.toFixed(1)+'★';
+  // Count keys (đơn, orders)
+  if(key.includes('Don') || key.includes('orders') || key === 'Tong_don_hang') return Math.round(n).toLocaleString('vi');
+  // CPC, CPO, AOV
+  if(key.includes('CPC') || key.includes('CPO') || key.includes('AOV')) return fmtMoney(n);
+  // Big money (GMV, doanh thu, chi phi)
+  return fmtMoney(n);
+}
+
+function fmtMoney(v){
+  if(v >= 1e12) return (v/1e12).toFixed(2)+'T';
+  if(v >= 1e9)  return (v/1e9).toFixed(1)+'T';
+  if(v >= 1e6)  return Math.round(v/1e6)+'M';
+  if(v >= 1e3)  return Math.round(v/1e3)+'k';
+  return Math.round(v).toLocaleString('vi');
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+function buildMini(id, data, color){
+  const el = document.getElementById(id); if(!el) return; dc(id);
+  charts[id] = new Chart(el,{type:'line',data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:color,borderWidth:1.5,pointRadius:0,tension:0.4,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
+}
+
+function buildLineChart(){
+  const el = document.getElementById('lineChart'); if(!el) return; dc('lineChart');
+  const labels = ['T1W1','T1W2','T1W3','T1W4','T2W1','T2W2','T2W3','T2W4'];
+  const S = {
+    gmv:[{label:'TikTok',data:[520,580,610,650,670,700,710,719],borderColor:'#185FA5',tension:0.4,pointRadius:2,fill:false,borderWidth:2},{label:'Shopee',data:[380,400,430,450,460,490,510,521],borderColor:'#E24B4A',tension:0.4,pointRadius:2,fill:false,borderWidth:2}],
+    orders:[{label:'TikTok',data:[1800,2000,2200,2400,2500,2600,2750,2847],borderColor:'#185FA5',tension:0.4,pointRadius:2,fill:false,borderWidth:2},{label:'Shopee',data:[1200,1350,1500,1600,1700,1800,1900,1974],borderColor:'#E24B4A',tension:0.4,pointRadius:2,fill:false,borderWidth:2}],
+    roas:[{label:'ROAS',data:[5.1,5.4,5.8,6.0,6.1,6.2,6.3,6.3],borderColor:'#3B6D11',tension:0.4,pointRadius:2,fill:false,borderWidth:2}]
+  };
+  const ll = document.getElementById('lineLeg');
+  if(ll) ll.style.display = lineTab==='roas'?'none':'';
+  charts['lineChart'] = new Chart(el,{type:'line',data:{labels,datasets:S[lineTab]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#aaa'}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#aaa'}}}}});
+}
+
+function switchLine(tab, el){
+  document.querySelectorAll('.stabs .stab').forEach(x=>x.classList.remove('on'));
+  el.classList.add('on'); lineTab=tab; dc('lineChart'); buildLineChart();
+}
+
+function buildDonut(id, data, colors){
+  const el = document.getElementById(id); if(!el) return; dc(id);
+  charts[id] = new Chart(el,{type:'doughnut',data:{datasets:[{data,backgroundColor:colors,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'70%'}});
+}
+
+function buildScore(){
+  const el = document.getElementById('scoreChart'); if(!el) return; dc('scoreChart');
+  charts['scoreChart'] = new Chart(el,{type:'doughnut',data:{datasets:[{data:[82,18],backgroundColor:['#185FA5','#f0f0ee'],borderWidth:0}]},options:{responsive:false,plugins:{legend:{display:false}},cutout:'78%',rotation:-90,circumference:180}});
+}
+
+function buildAdsBar(){
+  const el = document.getElementById('adsBarChart'); if(!el) return; dc('adsBarChart');
+  charts['adsBarChart'] = new Chart(el,{type:'bar',data:{labels:['Tuần 1','Tuần 2','Tuần 3','Tuần 4'],datasets:[{label:'Chi phí',data:[32,38,42,44],backgroundColor:'#B5D4F4',borderRadius:4,borderSkipped:false},{label:'GMV',data:[186,228,270,292],backgroundColor:'#185FA5',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#aaa'}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#aaa',callback:v=>v+'M'}}}}});
+}
+
+function initChartsForView(v){
+  if(v==='overview'){
+    buildMini('mc1',[42,48,51,55,58,61,63,65],'#185FA5');
+    buildMini('mc2',[31,36,38,42,44,48,51,54],'#3B6D11');
+    buildMini('mc3',[3200,3500,3800,4000,4200,4400,4600,4821],'#185FA5');
+    buildMini('mc4',[98,110,118,128,135,142,148,156],'#E24B4A');
+    buildMini('mc5',[5.1,5.4,5.6,5.8,6.0,6.1,6.2,6.3],'#3B6D11');
+    buildMini('mc6',[3.2,3.0,2.9,2.8,2.7,2.6,2.5,2.4],'#3B6D11');
+    buildLineChart(); buildDonut('donutChart',[58,42],['#185FA5','#E24B4A']); buildScore();
+  } else if(v==='tiktok'){
+    buildDonut('ttOrderChart',[78,12,8.2,1.8],['#3B6D11','#185FA5','#854F0B','#E24B4A']);
+  } else if(v==='ads'){
+    buildAdsBar();
+  } else if(v==='shopee'){
+    buildDonut('shopeePayChart',[51,20,15,14],['#185FA5','#3B6D11','#854F0B','#888']);
+  }
+}
+
+// Spin animation for loader
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+</script>
+</body>
+</html>
