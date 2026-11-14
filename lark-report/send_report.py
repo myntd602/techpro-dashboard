@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Gửi báo cáo KPI tự động vào nhóm Lark.
 
-Đọc tab KPI_Tháng (cùng nguồn với dashboard Vanhanh.html), dựng thẻ báo cáo
+Đọc tab KPI_Tháng (cùng nguồn với dashboard Vanhanh.html) và/hoặc số liệu
+TikTok/Meta Ads lấy thẳng từ API (xem ads_sources.py), dựng thẻ báo cáo
 (interactive card) và gửi qua Custom Bot webhook của nhóm Lark.
 
 Cấu trúc tab KPI_Tháng:
@@ -11,7 +12,7 @@ Cấu trúc tab KPI_Tháng:
     Cột D: giá trị kỳ trước (tuỳ chọn)
 
 Biến môi trường:
-    KPI_CSV_URL          link CSV publish của tab KPI_Tháng (bắt buộc)
+    KPI_CSV_URL          link CSV publish của tab KPI_Tháng (tuỳ chọn nếu đã có token Ads)
     LARK_WEBHOOK_URL     webhook của Custom Bot (bắt buộc, trừ khi --dry-run)
     LARK_WEBHOOK_SECRET  secret nếu bot bật "Signature verification" (tuỳ chọn)
     DASHBOARD_URL        link dashboard để gắn nút "Mở dashboard" (tuỳ chọn)
@@ -147,8 +148,10 @@ def fmt_money(v):
     a = abs(v)
     if a >= 1e9:
         return vn(f"{v / 1e9:.2f}") + " tỷ"
-    if a >= 1e6:
+    if a >= 1e7:
         return f"{v / 1e6:.0f} tr"
+    if a >= 1e6:
+        return vn(f"{v / 1e6:.1f}") + " tr"
     if a >= 1e4:
         return f"{v / 1e3:.0f}k"
     return f"{v:,.0f}đ".replace(",", ".")
@@ -240,10 +243,16 @@ def collect_alerts(data):
     return alerts
 
 
-def build_card(data, period, dashboard_url=None, now=None):
+def build_card(data, period, dashboard_url=None, now=None, ads=None):
     now = now or datetime.now(VN_TZ)
-    alerts = collect_alerts(data)
+    alerts = collect_alerts(data) if data else []
     elements = []
+
+    ads_elements = []
+    if ads:
+        from ads_card import build_ads_elements
+        ads_elements, ads_alerts = build_ads_elements(ads)
+        alerts += ads_alerts
 
     if alerts:
         elements.append({
@@ -254,7 +263,7 @@ def build_card(data, period, dashboard_url=None, now=None):
         elements.append({"tag": "hr"})
 
     shown = 0
-    for title, metrics in SECTIONS:
+    for title, metrics in (SECTIONS if data else []):
         fields = []
         for key, label, kind, good_dir in metrics:
             item = data.get(key)
@@ -269,8 +278,13 @@ def build_card(data, period, dashboard_url=None, now=None):
         elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"**📊 {title}**"}})
         elements.append({"tag": "div", "fields": fields})
 
-    if shown == 0:
+    if data and shown == 0:
         raise ValueError("Tab KPI_Tháng không có chỉ số nào khớp mã — kiểm tra cột A")
+
+    if ads_elements:
+        if shown:
+            elements.append({"tag": "hr"})
+        elements += ads_elements
 
     if dashboard_url:
         elements.append({"tag": "action", "actions": [{
@@ -280,9 +294,10 @@ def build_card(data, period, dashboard_url=None, now=None):
             "url": dashboard_url,
         }]})
 
+    sources = (["Google Sheet KPI_Tháng"] if data else []) + (["TikTok/Meta Ads API"] if ads else [])
     elements.append({"tag": "note", "elements": [{
         "tag": "plain_text",
-        "content": f"Nguồn: Google Sheet KPI_Tháng · Gửi lúc {now:%H:%M %d/%m/%Y}",
+        "content": f"Nguồn: {' + '.join(sources)} · Gửi lúc {now:%H:%M %d/%m/%Y}",
     }]})
 
     return {
@@ -325,19 +340,31 @@ def main():
     parser = argparse.ArgumentParser(description="Gửi báo cáo KPI vào nhóm Lark")
     parser.add_argument("--period", choices=PERIOD_TITLES, default="daily")
     parser.add_argument("--csv-file", help="Đọc CSV từ file thay vì từ Google Sheet (để thử)")
+    parser.add_argument("--ads-json", help="Đọc số liệu ads từ file JSON thay vì gọi API (để thử)")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ in thẻ ra màn hình, không gửi")
     args = parser.parse_args()
 
+    data = None
     if args.csv_file:
         with open(args.csv_file, encoding="utf-8-sig") as f:
-            text = f.read()
-    else:
-        csv_url = os.environ.get("KPI_CSV_URL")
-        if not csv_url:
-            sys.exit("Thiếu KPI_CSV_URL")
-        text = fetch_text(build_csv_url(csv_url))
+            data = parse_kpi_csv(f.read())
+    elif os.environ.get("KPI_CSV_URL"):
+        data = parse_kpi_csv(fetch_text(build_csv_url(os.environ["KPI_CSV_URL"])))
 
-    card = build_card(parse_kpi_csv(text), args.period, os.environ.get("DASHBOARD_URL"))
+    if args.ads_json:
+        with open(args.ads_json, encoding="utf-8") as f:
+            ads = json.load(f)
+        ads["range"] = tuple(datetime.strptime(d, "%Y-%m-%d").date() for d in ads["range"])
+    else:
+        from ads_sources import fetch_all
+        ads = fetch_all(args.period, datetime.now(VN_TZ).date())
+
+    if data is None and ads is None:
+        sys.exit("Chưa có nguồn dữ liệu: cần KPI_CSV_URL hoặc TIKTOK_ACCESS_TOKEN / META_ACCESS_TOKEN")
+    if ads and not ads["current"] and not ads["previous"] and ads["errors"] and data is None:
+        sys.exit("Không lấy được số liệu ads: " + "; ".join(ads["errors"]))
+
+    card = build_card(data, args.period, os.environ.get("DASHBOARD_URL"), ads=ads)
 
     if args.dry_run:
         print(json.dumps(card, ensure_ascii=False, indent=2))

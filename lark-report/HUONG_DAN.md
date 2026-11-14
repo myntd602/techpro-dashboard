@@ -1,6 +1,11 @@
 # Bot báo cáo KPI tự động trên Lark
 
-Mỗi sáng bot tự đọc tab `KPI_Tháng` trên Google Sheet (cùng nguồn với dashboard) và gửi thẻ báo cáo vào nhóm Lark:
+Bot tự gom số liệu từ 2 nguồn rồi gửi thẻ báo cáo vào nhóm Lark:
+
+- **Google Sheet** tab `KPI_Tháng` (cùng nguồn với dashboard): GMV, doanh thu, sàn… — nhập tay.
+- **TikTok Ads + Meta Ads API**: chi tiêu, kết quả của các tài khoản quảng cáo khách hàng — **tự lấy, không nhập tay** (xem Bước 5).
+
+Hai nguồn độc lập: có nguồn nào thì báo cáo nguồn đó.
 
 | Lịch gửi (giờ VN) | Loại |
 |---|---|
@@ -44,7 +49,7 @@ Không nên chỉ dùng "Keyword" — ai có link webhook cũng gửi được t
 
 Vào repo `techpro-dashboard` → **Settings → Secrets and variables → Actions**.
 
-Tab **Secrets** → **New repository secret**, tạo 3 mục:
+Tab **Secrets** → **New repository secret**, tạo các mục (nếu chỉ dùng số liệu Ads thì bỏ qua `KPI_CSV_URL`):
 
 | Tên | Giá trị |
 |---|---|
@@ -69,10 +74,69 @@ Nếu lỗi (dấu ✗ đỏ), bấm vào lần chạy để xem dòng cuối:
 
 | Thông báo | Cách sửa |
 |---|---|
-| `Thiếu KPI_CSV_URL` / `Thiếu LARK_WEBHOOK_URL` | Chưa tạo secret hoặc gõ sai tên |
+| `Chưa có nguồn dữ liệu` / `Thiếu LARK_WEBHOOK_URL` | Chưa tạo secret hoặc gõ sai tên |
 | `sign match fail` | Secret sai, hoặc bot không bật Signature verification nhưng vẫn khai `LARK_WEBHOOK_SECRET` |
 | `HTTP Error 400/404` khi đọc sheet | Sheet chưa "Xuất bản lên web" đúng tab |
 | `không có chỉ số nào khớp mã` | Cột A sai tên mã (phải đúng như file mẫu, phân biệt hoa thường) |
+
+## Bước 5 — Tự lấy số liệu quảng cáo TikTok + Meta
+
+Phần **📣 Quảng cáo khách hàng** trên thẻ gồm:
+
+- Tổng chi tiêu (tách TikTok / Meta), số TK đang chạy, CTR, CPC, tin nhắn, lead, đơn mua — so với kỳ trước.
+- Top 10 tài khoản chi tiêu nhiều nhất, kèm số kết quả và chi phí/kết quả.
+- Cảnh báo cho account manager, xếp theo mức chi tiêu của khách:
+  - Khách **ngừng chi tiêu** (kỳ trước chi ≥ 500k, kỳ này 0đ).
+  - Khách **giảm chi tiêu ≥ 50%**.
+  - **Chi phí/kết quả tăng ≥ 50%**.
+
+Kỳ so sánh: báo cáo ngày = hôm qua vs hôm kia; tuần = thứ Hai–CN tuần trước vs tuần trước nữa; tháng = tháng trước vs tháng trước nữa.
+
+Quy ước:
+- Chỉ cộng tài khoản tiền **VND**. TK USD/PHP/HKD không cộng vào tổng (ghi chú dưới thẻ).
+- Meta: "kết quả" của 1 tài khoản = loại lớn nhất trong tin nhắn / lead / đơn mua (không cộng dồn vì cùng 1 khách thường được đếm ở cả tin nhắn lẫn lead).
+- TikTok: "kết quả" = cột Conversion theo mục tiêu tối ưu của chiến dịch.
+- Chiến dịch **GMV Max** (TikTok Shop) không nằm trong báo cáo này — TikTok tách riêng loại báo cáo đó.
+
+### 5a. Token TikTok (cần làm 1 lần, có thể mất vài ngày chờ duyệt)
+
+1. Vào **business-api.tiktok.com/portal** → đăng nhập bằng tài khoản TikTok for Business đang quản lý các TK quảng cáo → **Become a Developer**.
+2. **My Apps → Create** app. Phần quyền (Scope) tick **Ad Account Management** và **Reporting**. Gửi duyệt. TikTok duyệt app thủ công; thời gian em không chắc chắn, thường vài ngày làm việc.
+3. Sau khi duyệt: mở **Advertiser authorization URL** của app → chọn tất cả TK quảng cáo → **Confirm**. Trình duyệt chuyển sang một link có `auth_code=...` → copy đoạn mã đó.
+4. Nhờ 1 bạn kỹ thuật chạy (2 phút, máy có Python):
+   ```
+   python3 lark-report/lay_token_tiktok.py APP_ID APP_SECRET AUTH_CODE
+   ```
+   Kết quả in ra **access token** — dán vào secret `TIKTOK_ACCESS_TOKEN`.
+5. Thêm secret `TIKTOK_APP_ID` và `TIKTOK_APP_SECRET` (lấy trong trang app) để bot tự nhận diện mọi TK đã uỷ quyền, kể cả TK thêm sau này (thêm TK mới thì làm lại bước 3–4).
+
+### 5b. Token Meta (khoảng 15 phút, không phải chờ duyệt)
+
+1. Vào **developers.facebook.com → My Apps → Create App** → loại **Business** → gắn với Business Manager của TechPro.
+2. Vào **business.facebook.com → Cài đặt doanh nghiệp → Người dùng → Người dùng hệ thống** → **Thêm** (vai trò Admin).
+3. Chọn người dùng hệ thống vừa tạo → **Chỉ định tài sản** → chọn các tài khoản quảng cáo → quyền **Xem hiệu quả** là đủ.
+4. **Tạo mã mới** → chọn app ở bước 1 → thời hạn **Không bao giờ** → tick quyền `ads_read` → copy mã → dán vào secret `META_ACCESS_TOKEN`.
+
+Token người dùng hệ thống không hết hạn khi nhân viên nghỉ việc hay đổi mật khẩu — đừng dùng token cá nhân.
+
+### 5c. Tuỳ chọn (tab Variables)
+
+| Tên | Ý nghĩa | Mặc định |
+|---|---|---|
+| `TIKTOK_ADVERTISER_IDS` | Chỉ lấy các TK này (ID cách nhau dấu phẩy). Bắt buộc nếu không khai `TIKTOK_APP_ID/SECRET` | mọi TK đã uỷ quyền |
+| `META_AD_ACCOUNT_IDS` | Chỉ lấy các TK này | mọi TK token thấy được |
+| `ADS_MIN_SPEND` | Chỉ cảnh báo khách có chi tiêu kỳ trước từ mức này (đ) | 500000 |
+| `ADS_DROP_PCT` | Cảnh báo khi chi tiêu giảm từ X% | 50 |
+| `ADS_CPR_RISE` | Cảnh báo khi chi phí/kết quả tăng từ X% | 50 |
+| `META_API_VERSION` | Phiên bản Graph API, chỉ đổi khi Meta báo phiên bản cũ hết hạn | v23.0 |
+
+Khi một nền tảng lỗi (token hết hạn, mất kết nối), bot **vẫn gửi** phần còn lại và ghi rõ lỗi dưới thẻ.
+
+| Thông báo lỗi trên thẻ | Cách sửa |
+|---|---|
+| `TikTok API lỗi 40105` / `40100` | Token TikTok sai hoặc bị thu hồi → làm lại 5a bước 3–4 |
+| `Meta API lỗi: Error validating access token` | Token Meta hết hạn/bị xoá → tạo lại theo 5b bước 4 |
+| `Cần TIKTOK_ADVERTISER_IDS, hoặc TIKTOK_APP_ID + TIKTOK_APP_SECRET` | Thiếu 1 trong 2 cách khai danh sách TK |
 
 ## Đổi giờ gửi
 
