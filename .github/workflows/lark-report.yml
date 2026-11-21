@@ -1,0 +1,59 @@
+name: Báo cáo KPI gửi Lark
+
+on:
+  schedule:
+    # Giờ theo UTC. Việt Nam = UTC+7.
+    - cron: "30 1 * * *"   # 08:30 hằng ngày — báo cáo ngày
+    - cron: "0 2 * * 1"    # 09:00 thứ Hai — báo cáo tuần
+    - cron: "0 2 1 * *"    # 09:00 ngày 1 hằng tháng — báo cáo tháng
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Loại báo cáo"
+        type: choice
+        options: [daily, weekly, monthly]
+        default: daily
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Chọn loại báo cáo
+        id: period
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 2 * * 1") echo "value=weekly" >> "$GITHUB_OUTPUT" ;;
+            "0 2 1 * *") echo "value=monthly" >> "$GITHUB_OUTPUT" ;;
+            "30 1 * * *") echo "value=daily" >> "$GITHUB_OUTPUT" ;;
+            *) echo "value=${{ inputs.period || 'daily' }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Kiểm tra code
+        run: python -m unittest lark-report/test_report.py
+
+      - name: Gửi báo cáo
+        env:
+          KPI_CSV_URL: ${{ secrets.KPI_CSV_URL }}
+          LARK_WEBHOOK_URL: ${{ secrets.LARK_WEBHOOK_URL }}
+          LARK_WEBHOOK_SECRET: ${{ secrets.LARK_WEBHOOK_SECRET }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          TIKTOK_APP_ID: ${{ secrets.TIKTOK_APP_ID }}
+          TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+          TIKTOK_ADVERTISER_IDS: ${{ vars.TIKTOK_ADVERTISER_IDS }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_AD_ACCOUNT_IDS: ${{ vars.META_AD_ACCOUNT_IDS }}
+          META_API_VERSION: ${{ vars.META_API_VERSION }}
+          ADS_MIN_SPEND: ${{ vars.ADS_MIN_SPEND }}
+          ADS_DROP_PCT: ${{ vars.ADS_DROP_PCT }}
+          ADS_CPR_RISE: ${{ vars.ADS_CPR_RISE }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+          ROAS_MIN: ${{ vars.ROAS_MIN }}
+          RETURN_MAX: ${{ vars.RETURN_MAX }}
+          TARGET_MIN: ${{ vars.TARGET_MIN }}
+        run: python lark-report/send_report.py --period "${{ steps.period.outputs.value }}"
