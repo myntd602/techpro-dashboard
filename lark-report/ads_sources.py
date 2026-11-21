@@ -96,8 +96,9 @@ def tiktok_advertisers(token):
     app_id, secret = os.environ.get("TIKTOK_APP_ID"), os.environ.get("TIKTOK_APP_SECRET")
     if not (app_id and secret):
         raise RuntimeError("Cần TIKTOK_ADVERTISER_IDS, hoặc TIKTOK_APP_ID + TIKTOK_APP_SECRET để tự lấy danh sách TK")
+    # API v1.3 đọc token ở header Access-Token; giữ thêm tham số access_token cho bản cũ
     data = _tiktok_call("/oauth2/advertiser/get/",
-                        {"app_id": app_id, "secret": secret, "access_token": token})
+                        {"app_id": app_id, "secret": secret, "access_token": token}, token)
     return {a["advertiser_id"]: a.get("advertiser_name") or a["advertiser_id"] for a in data.get("list", [])}
 
 
