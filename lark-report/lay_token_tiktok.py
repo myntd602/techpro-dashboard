@@ -30,4 +30,7 @@ if body.get("code") != 0:
 data = body["data"]
 print("Access token (dán vào secret TIKTOK_ACCESS_TOKEN):")
 print(data["access_token"])
-print(f"\nToken này xem được {len(data.get('advertiser_ids', []))} tài khoản quảng cáo.")
+ids = [str(i) for i in data.get("advertiser_ids", [])]
+print(f"\nToken này xem được {len(ids)} tài khoản quảng cáo:")
+print(",".join(ids))
+print("(Dòng ID trên có thể dán vào biến TIKTOK_ADVERTISER_IDS nếu không khai TIKTOK_APP_ID/SECRET.)")
