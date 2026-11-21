@@ -1,11 +1,11 @@
-# Bot báo cáo KPI tự động trên Lark
+# Bot báo cáo KPI tự động trên Lark và Telegram
 
-Bot tự gom số liệu từ 2 nguồn rồi gửi thẻ báo cáo vào nhóm Lark:
+Bot tự gom số liệu từ 2 nguồn rồi gửi thẻ báo cáo vào nhóm Lark, và/hoặc nhóm Telegram (xem Bước 6):
 
 - **Google Sheet** tab `KPI_Tháng` (cùng nguồn với dashboard): GMV, doanh thu, sàn… — nhập tay.
 - **TikTok Ads + Meta Ads API**: chi tiêu, kết quả của các tài khoản quảng cáo khách hàng — **tự lấy, không nhập tay** (xem Bước 5).
 
-Hai nguồn độc lập: có nguồn nào thì báo cáo nguồn đó.
+Hai nguồn độc lập: có nguồn nào thì báo cáo nguồn đó. Nơi nhận cũng vậy: khai Lark thì gửi Lark, khai Telegram thì gửi Telegram, khai cả hai thì gửi cả hai cùng một nội dung.
 
 | Lịch gửi (giờ VN) | Loại |
 |---|---|
@@ -68,13 +68,13 @@ Tab **Variables** (tuỳ chọn):
 
 ## Bước 4 — Gửi thử
 
-**Actions → Báo cáo KPI gửi Lark → Run workflow** → chọn loại báo cáo → **Run**. Khoảng 30 giây sau thẻ xuất hiện trong nhóm Lark.
+**Actions → Báo cáo KPI gửi Lark và Telegram → Run workflow** → chọn loại báo cáo → **Run**. Khoảng 30 giây sau thẻ xuất hiện trong nhóm Lark.
 
 Nếu lỗi (dấu ✗ đỏ), bấm vào lần chạy để xem dòng cuối:
 
 | Thông báo | Cách sửa |
 |---|---|
-| `Chưa có nguồn dữ liệu` / `Thiếu LARK_WEBHOOK_URL` | Chưa tạo secret hoặc gõ sai tên |
+| `Chưa có nguồn dữ liệu` / `Chưa khai nơi nhận` | Chưa tạo secret hoặc gõ sai tên |
 | `sign match fail` | Secret sai, hoặc bot không bật Signature verification nhưng vẫn khai `LARK_WEBHOOK_SECRET` |
 | `HTTP Error 400/404` khi đọc sheet | Sheet chưa "Xuất bản lên web" đúng tab |
 | `không có chỉ số nào khớp mã` | Cột A sai tên mã (phải đúng như file mẫu, phân biệt hoa thường) |
@@ -137,6 +137,64 @@ Khi một nền tảng lỗi (token hết hạn, mất kết nối), bot **vẫn
 | `TikTok API lỗi 40105` / `40100` | Token TikTok sai hoặc bị thu hồi → làm lại 5a bước 3–4 |
 | `Meta API lỗi: Error validating access token` | Token Meta hết hạn/bị xoá → tạo lại theo 5b bước 4 |
 | `Cần TIKTOK_ADVERTISER_IDS, hoặc TIKTOK_APP_ID + TIKTOK_APP_SECRET` | Thiếu 1 trong 2 cách khai danh sách TK |
+
+## Bước 6 — Gửi báo cáo về Telegram (khoảng 10 phút)
+
+Telegram nhận **đúng nội dung** như thẻ Lark: mục ⚠️ Cần xử lý, các nhóm chỉ số, phần 📣 Quảng cáo khách hàng (TikTok + Meta), top tài khoản và nút "Mở dashboard". Có cảnh báo thì tiêu đề có 🚨. Không dùng Lark thì bỏ qua Bước 2, chỉ cần bước này.
+
+### 6a. Tạo bot bằng BotFather
+
+1. Mở Telegram, ô tìm kiếm gõ **@BotFather** → chọn tài khoản có **dấu tích xanh** (cẩn thận tài khoản giả mạo tên gần giống).
+2. Bấm **Start**, rồi gõ `/newbot`.
+3. BotFather hỏi tên hiển thị → gõ ví dụ `TechPro Report`.
+4. BotFather hỏi username → gõ tên **kết thúc bằng `bot`**, không dấu, không cách, ví dụ `techpro_report_bot`. Nếu báo đã có người dùng thì thêm số: `techpro_report2_bot`.
+5. BotFather trả về một dòng dạng `8123456789:AAH...` — đây là **token**. Copy lại, coi như mật khẩu: ai có token này đều gửi được tin dưới tên bot.
+
+Lỡ để lộ token: vào @BotFather gõ `/revoke` → chọn bot → nhận token mới → cập nhật lại secret ở 6c.
+
+### 6b. Đưa bot vào nhóm và lấy Chat ID
+
+1. Tạo (hoặc mở) nhóm Telegram muốn nhận báo cáo, ví dụ "TechPro – Ban điều hành". Nên để nhóm **riêng tư** vì báo cáo có số liệu khách hàng.
+2. Vào thông tin nhóm → **Thêm thành viên** → tìm username bot (ví dụ `@techpro_report_bot`) → Thêm.
+3. Trong nhóm, gõ một tin: `/start@techpro_report_bot` (thay bằng username bot của chị) rồi gửi.
+4. Trên trình duyệt máy tính, mở link sau, thay `TOKEN` bằng token ở 6a (giữ nguyên chữ `bot` phía trước):
+   ```
+   https://api.telegram.org/botTOKEN/getUpdates
+   ```
+5. Trang hiện ra một đoạn chữ. Tìm (Ctrl + F) cụm `"chat":{"id":` — con số ngay sau là **Chat ID**, thường dạng `-1001234567890`. Copy **cả dấu trừ**.
+   - Nếu trang chỉ hiện `{"ok":true,"result":[]}`: gửi lại tin ở bước 3 rồi tải lại trang (Telegram chỉ giữ tin trong 24 giờ).
+   - Có nhiều đoạn `"chat"`: chọn đoạn có `"title":"<tên nhóm của chị>"`. Đoạn có `"type":"private"` là chat riêng với bot, không phải nhóm.
+
+Muốn nhận báo cáo ở chat riêng thay vì nhóm: nhắn `/start` cho bot, mở link ở bước 4, lấy `"id"` trong đoạn `"type":"private"` (số dương).
+
+### 6c. Khai báo trên GitHub
+
+Repo `techpro-dashboard` → **Settings → Secrets and variables → Actions** → tab **Secrets** → **New repository secret**:
+
+| Tên | Giá trị |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | Token ở 6a |
+| `TELEGRAM_CHAT_ID` | Chat ID ở 6b. Gửi nhiều nhóm thì ghi cách nhau dấu phẩy: `-1001111111111,-1002222222222` |
+
+Tuỳ chọn, tab **Variables**: nhóm có bật **Topics** (chủ đề) và muốn báo cáo vào đúng 1 chủ đề → tạo `TELEGRAM_THREAD_ID` = số cuối trong link của chủ đề đó (bấm chuột phải vào tin trong chủ đề → Copy Message Link, link dạng `t.me/c/123/45/67` thì số chủ đề là `45`).
+
+Gửi thử như Bước 4. Tin nhắn dài quá giới hạn của Telegram (4.096 ký tự) sẽ tự tách thành 2–3 tin liên tiếp.
+
+Khi Lark và Telegram cùng khai: một bên lỗi thì bên kia **vẫn nhận** báo cáo; lần chạy vẫn báo ✗ đỏ để chị biết bên nào lỗi.
+
+| Thông báo lỗi | Cách sửa |
+|---|---|
+| `Telegram: ... Unauthorized` | Token sai, thiếu ký tự, hoặc đã `/revoke` → dán lại token mới |
+| `Telegram: ... chat not found` | Chat ID sai/thiếu dấu trừ, hoặc bot chưa được thêm vào nhóm |
+| `Telegram: ... bot was kicked` / `not a member` | Bot bị xoá khỏi nhóm → thêm lại |
+| `Telegram: ... group chat was upgraded to a supergroup` | Nhóm đổi loại nên đổi Chat ID → làm lại 6b bước 3–5, lấy ID mới (bắt đầu bằng `-100`) |
+| `Telegram: ... message thread not found` | `TELEGRAM_THREAD_ID` sai, hoặc nhóm đã tắt Topics → sửa hoặc xoá biến |
+| `Thiếu TELEGRAM_BOT_TOKEN` | Đã khai Chat ID nhưng chưa khai token |
+
+Bạn kỹ thuật muốn xem trước nội dung tin Telegram mà không gửi:
+```
+python3 lark-report/send_report.py --csv-file lark-report/sample_kpi.csv --ads-json lark-report/sample_ads.json --telegram-preview
+```
 
 ## Đổi giờ gửi
 

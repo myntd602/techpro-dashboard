@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gửi báo cáo KPI tự động vào nhóm Lark.
+"""Gửi báo cáo KPI tự động vào nhóm Lark và/hoặc Telegram.
 
 Đọc tab KPI_Tháng (cùng nguồn với dashboard Vanhanh.html) và/hoặc số liệu
 TikTok/Meta Ads lấy thẳng từ API (xem ads_sources.py), dựng thẻ báo cáo
@@ -13,8 +13,11 @@ Cấu trúc tab KPI_Tháng:
 
 Biến môi trường:
     KPI_CSV_URL          link CSV publish của tab KPI_Tháng (tuỳ chọn nếu đã có token Ads)
-    LARK_WEBHOOK_URL     webhook của Custom Bot (bắt buộc, trừ khi --dry-run)
+    LARK_WEBHOOK_URL     webhook của Custom Bot Lark (tuỳ chọn nếu đã khai Telegram)
     LARK_WEBHOOK_SECRET  secret nếu bot bật "Signature verification" (tuỳ chọn)
+    TELEGRAM_BOT_TOKEN   token bot Telegram từ @BotFather (tuỳ chọn, xem telegram_report.py)
+    TELEGRAM_CHAT_ID     ID nhóm Telegram nhận báo cáo, nhiều nhóm cách nhau dấu phẩy
+    TELEGRAM_THREAD_ID   ID chủ đề nếu nhóm Telegram bật Topics (tuỳ chọn)
     DASHBOARD_URL        link dashboard để gắn nút "Mở dashboard" (tuỳ chọn)
     ROAS_MIN             ngưỡng cảnh báo ROAS (mặc định 4)
     RETURN_MAX           ngưỡng cảnh báo tỷ lệ hoàn hàng, % (mặc định 3)
@@ -337,11 +340,13 @@ def send_to_lark(webhook_url, card, secret=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gửi báo cáo KPI vào nhóm Lark")
+    parser = argparse.ArgumentParser(description="Gửi báo cáo KPI vào nhóm Lark / Telegram")
     parser.add_argument("--period", choices=PERIOD_TITLES, default="daily")
     parser.add_argument("--csv-file", help="Đọc CSV từ file thay vì từ Google Sheet (để thử)")
     parser.add_argument("--ads-json", help="Đọc số liệu ads từ file JSON thay vì gọi API (để thử)")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ in thẻ ra màn hình, không gửi")
+    parser.add_argument("--telegram-preview", action="store_true",
+                        help="Chỉ in nội dung tin Telegram ra màn hình, không gửi")
     args = parser.parse_args()
 
     data = None
@@ -369,12 +374,45 @@ def main():
     if args.dry_run:
         print(json.dumps(card, ensure_ascii=False, indent=2))
         return
+    if args.telegram_preview:
+        import telegram_report
+        messages, _ = telegram_report.card_to_messages(card)
+        print("\n\n===== tin tiếp theo =====\n\n".join(messages))
+        return
 
+    deliver(card)
+
+
+def deliver(card):
+    """Gửi tới mọi kênh đã khai. Một kênh lỗi vẫn gửi kênh còn lại, cuối cùng mới báo lỗi."""
     webhook = os.environ.get("LARK_WEBHOOK_URL")
-    if not webhook:
-        sys.exit("Thiếu LARK_WEBHOOK_URL")
-    send_to_lark(webhook, card, os.environ.get("LARK_WEBHOOK_SECRET"))
-    print("Đã gửi báo cáo vào Lark.")
+    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    tg_chats = os.environ.get("TELEGRAM_CHAT_ID")
+    if not webhook and not tg_token and not tg_chats:
+        sys.exit("Chưa khai nơi nhận: cần LARK_WEBHOOK_URL hoặc TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID")
+
+    errors = []
+    if webhook:
+        try:
+            send_to_lark(webhook, card, os.environ.get("LARK_WEBHOOK_SECRET"))
+            print("Đã gửi báo cáo vào Lark.")
+        except Exception as e:
+            errors.append(f"Lark: {e}")
+
+    if tg_token or tg_chats:
+        import telegram_report
+        try:
+            if not tg_token:
+                raise ValueError("Thiếu TELEGRAM_BOT_TOKEN")
+            chat_ids = telegram_report.parse_chat_ids(tg_chats)
+            n = telegram_report.send_to_telegram(tg_token, chat_ids, card,
+                                                 os.environ.get("TELEGRAM_THREAD_ID"))
+            print(f"Đã gửi báo cáo vào Telegram ({len(chat_ids)} nơi nhận, {n} tin).")
+        except Exception as e:
+            errors.append(f"Telegram: {e}")
+
+    if errors:
+        sys.exit("Gửi lỗi — " + " | ".join(errors))
 
 
 if __name__ == "__main__":

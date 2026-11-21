@@ -1,4 +1,4 @@
-name: Báo cáo KPI gửi Lark
+name: Báo cáo KPI gửi Lark và Telegram
 
 on:
   schedule:
@@ -42,6 +42,9 @@ jobs:
           KPI_CSV_URL: ${{ secrets.KPI_CSV_URL }}
           LARK_WEBHOOK_URL: ${{ secrets.LARK_WEBHOOK_URL }}
           LARK_WEBHOOK_SECRET: ${{ secrets.LARK_WEBHOOK_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
           TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
           TIKTOK_APP_ID: ${{ secrets.TIKTOK_APP_ID }}
           TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
